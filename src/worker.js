@@ -1,15 +1,19 @@
 // YouTube ワイン抽出ツール — Cloudflare Worker
 // エンドポイント:
-//   POST /api/extract  { url }  → { videoId, title, description, publishedDate, transcriptLang, wines: [...] }
+//   POST /api/extract  { url }                            → 単一動画のメタ + Gemini抽出結果
+//   POST /api/channel  { url } | { continuation }          → チャンネル動画一覧（ページネーション対応）
 //   それ以外 → public/ の静的アセット（UI）
-
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36';
+//
+// 実装: YouTube Data API v3 を使ってメタ情報を取得（Cloudflare IP が Innertube を bot 判定するため）。
+// ワイン抽出は Gemini でタイトル + 概要欄から構造化。
+// 字幕は Data API では取得できないため使わない（概要欄で十分な精度が出る）。
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
     if (url.pathname === '/api/extract') return handleExtract(request, env);
+    if (url.pathname === '/api/channel') return handleChannel(request, env);
     if (env.ASSETS) return env.ASSETS.fetch(request);
     return new Response('Not found', { status: 404 });
   },
@@ -28,11 +32,10 @@ function json(obj, status = 200) {
   }));
 }
 
-// ---------- YouTube URL → videoId ----------
+// ---------- URL パース ----------
 function extractVideoId(input) {
   if (!input) return null;
   const s = String(input).trim();
-  // 11-char ID that appears in youtube URLs
   const patterns = [
     /[?&]v=([A-Za-z0-9_-]{11})/,
     /youtu\.be\/([A-Za-z0-9_-]{11})/,
@@ -48,95 +51,46 @@ function extractVideoId(input) {
   return null;
 }
 
-// ---------- 動画ページ取得＋字幕トラック抽出 ----------
-async function fetchWatchPage(videoId) {
-  const url = `https://www.youtube.com/watch?v=${videoId}&hl=ja&gl=JP`;
-  const r = await fetch(url, {
-    headers: {
-      'User-Agent': UA,
-      'Accept-Language': 'ja,en;q=0.8',
-    },
-  });
-  if (!r.ok) throw new Error(`YouTube ページ取得失敗 (${r.status})`);
-  return await r.text();
-}
-
-// ytInitialPlayerResponse を HTML から抜く
-function parsePlayerResponse(html) {
-  // 複数の書き方があるので順に試す
-  const patterns = [
-    /var ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;\s*(?:var |<\/script>)/s,
-    /ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;\s*(?:var |<\/script>)/s,
-    /"ytInitialPlayerResponse"\s*:\s*(\{.+?\})\s*,\s*"/s,
-  ];
-  for (const p of patterns) {
-    const m = html.match(p);
-    if (m) {
-      try {
-        return JSON.parse(m[1]);
-      } catch (e) {
-        // 継続して次のパターンを試す
-      }
-    }
-  }
+// チャンネルの識別子を返す: { handle?: string, channelId?: string }
+function extractChannelRef(input) {
+  const s = String(input || '').trim();
+  if (!s) return null;
+  // 生の @handle
+  const bare = s.match(/^@([\w.-]+)$/);
+  if (bare) return { handle: bare[1] };
+  try {
+    const u = new URL(s.startsWith('http') ? s : 'https://' + s);
+    const path = u.pathname.replace(/\/+$/, '');
+    // /channel/UCxxx
+    const chId = path.match(/\/channel\/(UC[\w-]{20,})/);
+    if (chId) return { channelId: chId[1] };
+    // /@handle
+    const handle = path.match(/\/@([\w.-]+)/);
+    if (handle) return { handle: handle[1] };
+    // /c/name または /user/name → handle 検索へフォールバック
+    const legacy = path.match(/\/(c|user)\/([\w.-]+)/);
+    if (legacy) return { handle: legacy[2] };
+  } catch (e) { /* ignore */ }
   return null;
 }
 
-// 字幕トラックリストから最良の1本を選ぶ（ja → ja自動 → en → 最初の1本）
-function pickCaptionTrack(tracks) {
-  if (!tracks || !tracks.length) return null;
-  // 1) 日本語の手動字幕
-  let t = tracks.find(x => (x.languageCode === 'ja') && x.kind !== 'asr');
-  if (t) return t;
-  // 2) 日本語の自動字幕
-  t = tracks.find(x => x.languageCode === 'ja');
-  if (t) return t;
-  // 3) 英語の手動字幕
-  t = tracks.find(x => (x.languageCode === 'en') && x.kind !== 'asr');
-  if (t) return t;
-  // 4) 英語の自動字幕
-  t = tracks.find(x => x.languageCode === 'en');
-  if (t) return t;
-  return tracks[0];
-}
-
-// 字幕XML → プレーンテキスト
-function transcriptXmlToText(xml) {
-  // <text start="..." dur="...">本文</text> を抽出
-  const out = [];
-  const re = /<text[^>]*>([\s\S]*?)<\/text>/g;
-  let m;
-  while ((m = re.exec(xml)) !== null) {
-    out.push(decodeHtml(m[1]).replace(/\s+/g, ' ').trim());
+// ---------- YouTube Data API v3 ----------
+async function ytApi(env, endpoint, params) {
+  if (!env.YOUTUBE_API_KEY) throw new Error('YOUTUBE_API_KEY が未設定です（wrangler secret put で登録してください）');
+  const url = new URL(`https://www.googleapis.com/youtube/v3/${endpoint}`);
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
   }
-  return out.filter(Boolean).join('\n');
+  url.searchParams.set('key', env.YOUTUBE_API_KEY);
+  const r = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+  const d = await r.json();
+  if (!r.ok || d.error) throw new Error(d?.error?.message || `Data API エラー (${r.status})`);
+  return d;
 }
 
-function decodeHtml(s) {
-  return String(s || '')
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, n) => String.fromCharCode(parseInt(n, 16)));
-}
-
-async function fetchTranscript(track) {
-  if (!track || !track.baseUrl) return { lang: null, text: '' };
-  // 日本語がなければ翻訳パラメータで日本語化を試みる
-  const url = new URL(track.baseUrl);
-  const r = await fetch(url.toString(), { headers: { 'User-Agent': UA } });
-  if (!r.ok) return { lang: track.languageCode || null, text: '' };
-  const xml = await r.text();
-  return { lang: track.languageCode || null, text: transcriptXmlToText(xml) };
-}
-
-// ---------- Gemini でワイン抽出 ----------
+// ---------- Gemini 抽出 ----------
 async function extractWinesWithGemini(env, ctx) {
-  if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY が未設定です（wrangler secret put で登録してください）');
+  if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY が未設定です');
   const model = env.GEMINI_MODEL || 'gemini-3.6-flash';
   const prompt = buildWinePrompt(ctx);
   const body = {
@@ -185,12 +139,10 @@ async function extractWinesWithGemini(env, ctx) {
   }
 }
 
-function buildWinePrompt({ title, description, transcript }) {
-  // 入力サイズを抑制
-  const trimmedDesc = (description || '').slice(0, 3000);
-  const trimmedScript = (transcript || '').slice(0, 20000);
+function buildWinePrompt({ title, description }) {
+  const trimmedDesc = (description || '').slice(0, 5000);
   return `# 役割
-あなたはワインに詳しいアシスタントです。以下は YouTube のブラインドテイスティング動画に付随するメタ情報と文字起こしです。この動画に「出題された」もしくは「登場した」ワインを、1本 = 1レコードで JSON に構造化して抽出してください。
+あなたはワインに詳しいアシスタントです。以下は YouTube のブラインドテイスティング動画のタイトルと概要欄です。この動画に「出題された」もしくは「登場した」ワインを、1本 = 1レコードで JSON に構造化して抽出してください。
 
 # 入力
 ## 動画タイトル
@@ -199,21 +151,19 @@ ${title || '(不明)'}
 ## 概要欄
 ${trimmedDesc || '(なし)'}
 
-## 文字起こし（自動字幕を含む・多少の誤変換あり）
-${trimmedScript || '(なし)'}
-
 # 抽出ルール
-- 出題ワイン（＝味わってブラインドで当てにいくワイン）を対象。テイスターが飲んでいなくても、比較で名前だけ挙がっているワインは除外。
+- 出題ワイン（＝味わってブラインドで当てにいくワイン）を対象。比較で名前だけ挙がっているワインや、講座・イベント告知のワインは除外。
+- 概要欄に「【本日のワイン】」「【テクニカルデータ】」「品種：」「産地：」「ヴィンテージ：」等のキーがある場合、それらから丁寧に読み取る。
 - 迷ったら wineName だけ埋めて残りは空文字にする。推測は書かない（誤情報より空欄が良い）。
 - 各項目の書き方:
-  - wineName: 商品名。生産者名は除く（例：「Château Margaux 2015」ではなく「Château Margaux」または「シャトー・マルゴー」）
-  - producer: 生産者名（例：「シャトー・マルゴー」「ドメーヌ・ルフレーヴ」）
+  - wineName: 商品名。生産者名は除く（例：「シャトー・マルゴー 2015」ではなく「シャトー・マルゴー」）。ラベル表記そのままでも可。
+  - producer: 生産者名（例：「シャトー・マルゴー」「ドメーヌ・ルフレーヴ」「ラングマン」）。「〜／」の後にある名前は多くの場合これに該当。
   - variety: 品種。複数は「カベルネ・ソーヴィニヨン, メルロー」のようにカンマ+半角スペース区切り
-  - country: 国名（例：「フランス」「イタリア」「日本」「アメリカ」）
-  - region: 産地（例：「ボルドー・メドック」「ブルゴーニュ・シャブリ」「山梨」）
-  - vintage: 年（例：「2015」「2020」）。ノン・ヴィンテージなら「N.V.」
+  - country: 国名（例：「フランス」「イタリア」「日本」「オーストリア」）
+  - region: 産地（例：「ボルドー・メドック」「ブルゴーニュ・シャブリ」「ヴェストシュタイヤーマルク」）
+  - vintage: 年（例：「2015」「2020」）。ノン・ヴィンテージなら「N.V.」。書かれてなければ空欄。
 - 日本語表記を優先。原語しか出ていない場合は原語で。
-- 字幕は自動生成のため誤字が多いです。文脈から正しい表記を推定してよいが、断片的すぎるものは避ける。
+- 概要欄に登場する定型文（講座告知、Amazon リンク、テイスティングワイン募集など）は無視。
 - 出題本数が読み取れないなら、確信のあるものだけ返す。0件でも構いません。
 
 # 出力
@@ -222,83 +172,146 @@ JSON のみ。以下のスキーマに厳密に従うこと:
 `;
 }
 
-// ---------- メタ情報抜き出し ----------
-function extractMeta(playerResponse, html) {
-  const vd = playerResponse?.videoDetails || {};
-  const microformat = playerResponse?.microformat?.playerMicroformatRenderer || {};
-  const title = vd.title || (html.match(/<meta name="title" content="([^"]+)"/) || [])[1] || '';
-  const description = vd.shortDescription || microformat.description?.simpleText || '';
-  const publishedDate = microformat.publishDate || microformat.uploadDate || '';
-  return { title, description, publishedDate };
-}
-
-// ---------- ハンドラ本体 ----------
+// ---------- /api/extract ----------
 async function handleExtract(request, env) {
   if (request.method !== 'POST') return json({ error: 'POST を使用してください' }, 405);
   let body;
   try { body = await request.json(); } catch (e) { return json({ error: 'リクエストが不正です' }, 400); }
 
   const videoId = extractVideoId(body.url);
-  if (!videoId) return json({ error: 'YouTube の URL または動画 ID を渡してください' }, 400);
+  if (!videoId) return json({ error: 'YouTube の動画 URL または動画 ID を渡してください' }, 400);
 
-  let html;
-  try { html = await fetchWatchPage(videoId); }
-  catch (e) { return json({ error: '動画ページの取得に失敗しました: ' + e.message }, 502); }
+  let d;
+  try { d = await ytApi(env, 'videos', { part: 'snippet', id: videoId }); }
+  catch (e) { return json({ error: '動画情報の取得に失敗しました: ' + e.message }, 502); }
 
-  const playerResponse = parsePlayerResponse(html);
-  if (!playerResponse) return json({ error: 'YouTube ページの解析に失敗しました（構造が変わった可能性）' }, 502);
+  const item = (d.items || [])[0];
+  if (!item) return json({ error: '動画が見つかりません（削除・非公開の可能性）' }, 404);
 
-  // 年齢制限/非公開など
-  const status = playerResponse?.playabilityStatus?.status;
-  if (status && status !== 'OK') {
-    return json({ error: `動画にアクセスできません: ${status} - ${playerResponse?.playabilityStatus?.reason || ''}` }, 403);
-  }
-
-  const meta = extractMeta(playerResponse, html);
-  const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-  const track = pickCaptionTrack(tracks);
-  let transcriptLang = null;
-  let transcriptText = '';
-  let transcriptNote = '';
-  if (track) {
-    try {
-      const t = await fetchTranscript(track);
-      transcriptLang = t.lang;
-      transcriptText = t.text;
-    } catch (e) {
-      transcriptNote = '字幕は見つかりましたが取得に失敗しました: ' + e.message;
-    }
-  } else {
-    transcriptNote = 'この動画には字幕がありません。概要欄のみで抽出します。';
-  }
+  const s = item.snippet || {};
+  const title = s.title || '';
+  const description = s.description || '';
+  const publishedDate = s.publishedAt || '';
 
   let wines = [];
   try {
-    wines = await extractWinesWithGemini(env, {
-      title: meta.title,
-      description: meta.description,
-      transcript: transcriptText,
-    });
+    wines = await extractWinesWithGemini(env, { title, description });
   } catch (e) {
-    return json({
-      error: e.message,
-      videoId,
-      title: meta.title,
-      description: meta.description,
-      publishedDate: meta.publishedDate,
-      transcriptLang,
-      transcriptNote,
-    }, 502);
+    return json({ error: e.message, videoId, title, description, publishedDate }, 502);
   }
 
   return json({
     videoId,
-    title: meta.title,
-    description: meta.description,
-    publishedDate: meta.publishedDate,
-    transcriptLang,
-    transcriptNote,
-    transcriptChars: transcriptText.length,
+    title,
+    description,
+    publishedDate,
+    channelTitle: s.channelTitle || '',
     wines,
   });
+}
+
+// ---------- /api/channel ----------
+// 初回: { url } を受けて channelId を確定し uploads プレイリストの最初のページを返す
+// 継続: { continuation: { playlistId, pageToken } } で次のページを取得
+async function handleChannel(request, env) {
+  if (request.method !== 'POST') return json({ error: 'POST を使用してください' }, 405);
+  let body;
+  try { body = await request.json(); } catch (e) { return json({ error: 'リクエストが不正です' }, 400); }
+
+  // 継続ページ
+  if (body.continuation) {
+    const { playlistId, pageToken } = body.continuation;
+    if (!playlistId) return json({ error: 'continuation.playlistId が必要です' }, 400);
+    try {
+      const page = await ytApi(env, 'playlistItems', {
+        part: 'snippet,contentDetails',
+        playlistId,
+        maxResults: 50,
+        pageToken,
+      });
+      return json({
+        videos: playlistItemsToVideos(page.items || []),
+        continuation: page.nextPageToken ? { playlistId, pageToken: page.nextPageToken } : null,
+      });
+    } catch (e) { return json({ error: '続きの取得に失敗しました: ' + e.message }, 502); }
+  }
+
+  // 初回
+  const ref = extractChannelRef(body.url);
+  if (!ref) return json({ error: 'チャンネル URL または @handle を渡してください' }, 400);
+
+  try {
+    let channelId = ref.channelId;
+    let channelTitle = '';
+
+    if (!channelId) {
+      // handle → channelId 解決
+      const c = await ytApi(env, 'channels', {
+        part: 'snippet,contentDetails',
+        forHandle: ref.handle,
+      });
+      const it = (c.items || [])[0];
+      if (!it) return json({ error: `チャンネルが見つかりません (@${ref.handle})` }, 404);
+      channelId = it.id;
+      channelTitle = it.snippet?.title || '';
+      // uploads playlistId
+      const uploads = it.contentDetails?.relatedPlaylists?.uploads;
+      if (!uploads) return json({ error: 'uploads プレイリストが見つかりません' }, 502);
+      const page = await ytApi(env, 'playlistItems', {
+        part: 'snippet,contentDetails',
+        playlistId: uploads,
+        maxResults: 50,
+      });
+      return json({
+        channelTitle, channelId,
+        videos: playlistItemsToVideos(page.items || []),
+        continuation: page.nextPageToken ? { playlistId: uploads, pageToken: page.nextPageToken } : null,
+      });
+    }
+
+    // channelId 指定 → channels で uploads を取得
+    const c = await ytApi(env, 'channels', {
+      part: 'snippet,contentDetails',
+      id: channelId,
+    });
+    const it = (c.items || [])[0];
+    if (!it) return json({ error: `チャンネルが見つかりません (${channelId})` }, 404);
+    channelTitle = it.snippet?.title || '';
+    const uploads = it.contentDetails?.relatedPlaylists?.uploads;
+    if (!uploads) return json({ error: 'uploads プレイリストが見つかりません' }, 502);
+    const page = await ytApi(env, 'playlistItems', {
+      part: 'snippet,contentDetails',
+      playlistId: uploads,
+      maxResults: 50,
+    });
+    return json({
+      channelTitle, channelId,
+      videos: playlistItemsToVideos(page.items || []),
+      continuation: page.nextPageToken ? { playlistId: uploads, pageToken: page.nextPageToken } : null,
+    });
+  } catch (e) {
+    return json({ error: 'チャンネル取得エラー: ' + e.message }, 502);
+  }
+}
+
+function playlistItemsToVideos(items) {
+  const out = [];
+  for (const it of items) {
+    const s = it.snippet || {};
+    const cd = it.contentDetails || {};
+    const videoId = cd.videoId || s.resourceId?.videoId;
+    if (!videoId) continue;
+    const thumbs = s.thumbnails || {};
+    const thumb = (thumbs.medium || thumbs.high || thumbs.default || {}).url || '';
+    // 相対時刻ではなく publishedAt を表示
+    const publishedAt = cd.videoPublishedAt || s.publishedAt || '';
+    out.push({
+      id: videoId,
+      title: s.title || '',
+      publishedText: publishedAt ? publishedAt.slice(0, 10) : '',
+      views: '',
+      thumbnail: thumb,
+    });
+  }
+  return out;
 }

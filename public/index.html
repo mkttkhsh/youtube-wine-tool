@@ -21,9 +21,7 @@
   body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.55;
+    background: var(--bg); color: var(--text); line-height: 1.55;
   }
   header {
     padding: 18px 20px 12px;
@@ -39,42 +37,26 @@
   .sub { font-size: 12px; color: var(--sub); }
   main { padding: 16px; max-width: 1200px; margin: 0 auto; }
   .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px;
-    margin-bottom: 14px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; margin-bottom: 14px;
   }
   label { display: block; font-size: 12px; color: var(--sub); margin-bottom: 4px; }
-  input[type="url"], input[type="text"], textarea {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 14px;
-    font-family: inherit;
-    background: #fff;
-    color: var(--text);
+  input[type="url"], input[type="text"], input[type="search"], textarea {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; font-family: inherit; background: #fff; color: var(--text);
   }
   input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   .row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
   .row > .grow { flex: 1 1 320px; }
   button {
-    padding: 10px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: #fff;
-    color: var(--text);
-    font-size: 14px;
-    font-family: inherit;
-    cursor: pointer;
-    white-space: nowrap;
+    padding: 10px 16px; border-radius: 8px;
+    border: 1px solid var(--border); background: #fff; color: var(--text);
+    font-size: 14px; font-family: inherit; cursor: pointer; white-space: nowrap;
   }
   button:hover:not(:disabled) { background: #f3ebe6; }
   button:disabled { opacity: 0.5; cursor: default; }
-  button.primary {
-    background: var(--accent); color: #fff; border-color: var(--accent);
-  }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   button.primary:hover:not(:disabled) { background: var(--accent-hover); }
   button.ghost { background: transparent; }
   .msg { margin-top: 10px; font-size: 13px; padding: 8px 10px; border-radius: 6px; }
@@ -87,42 +69,51 @@
   th, td { border-bottom: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
   th { background: #f5edea; color: var(--sub); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
   td [contenteditable] {
-    display: block;
-    min-height: 22px;
-    min-width: 40px;
-    padding: 4px 6px;
-    border-radius: 4px;
-    outline: none;
+    display: block; min-height: 22px; min-width: 40px;
+    padding: 4px 6px; border-radius: 4px; outline: none;
   }
   td [contenteditable]:focus { background: #fff8e6; box-shadow: inset 0 0 0 1px var(--accent); }
-  td [contenteditable]:empty::before {
-    content: attr(data-placeholder);
-    color: #c9bdb5;
-    font-style: italic;
-  }
-  .row-actions button {
-    padding: 4px 8px;
-    font-size: 12px;
-  }
+  td [contenteditable]:empty::before { content: attr(data-placeholder); color: #c9bdb5; font-style: italic; }
+  .row-actions button { padding: 4px 8px; font-size: 12px; }
   .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
   .accumulated { border-top: 2px solid var(--accent); margin-top: 20px; padding-top: 12px; }
   .accumulated h2 { font-size: 14px; margin: 0 0 8px 0; }
   .spinner {
-    display: inline-block;
-    width: 12px; height: 12px;
-    border: 2px solid #fff;
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    vertical-align: middle;
-    margin-right: 6px;
+    display: inline-block; width: 12px; height: 12px;
+    border: 2px solid #fff; border-top-color: transparent;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+    vertical-align: middle; margin-right: 6px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   .empty { color: var(--sub); font-size: 13px; padding: 12px; text-align: center; }
+  .chan-list { max-height: 60vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; }
+  .chan-item { display: flex; gap: 10px; padding: 8px; border-bottom: 1px solid var(--border); align-items: flex-start; }
+  .chan-item:last-child { border-bottom: none; }
+  .chan-item.processed { background: #f2f7f4; }
+  .chan-item.processing { background: #fff8e6; }
+  .chan-item.failed { background: #fbe6ea; }
+  .chan-item input[type="checkbox"] { margin-top: 4px; flex-shrink: 0; width: 18px; height: 18px; accent-color: var(--accent); }
+  .chan-thumb {
+    width: 96px; height: 54px; object-fit: cover; border-radius: 4px; background: #eee; flex-shrink: 0;
+  }
+  .chan-body { flex: 1; min-width: 0; }
+  .chan-title { font-size: 13px; font-weight: 500; line-height: 1.4; margin-bottom: 3px; }
+  .chan-title a { color: var(--text); text-decoration: none; }
+  .chan-title a:hover { color: var(--accent); }
+  .chan-meta { font-size: 11px; color: var(--sub); display: flex; gap: 8px; flex-wrap: wrap; }
+  .chan-status { font-size: 11px; padding: 2px 6px; border-radius: 3px; }
+  .chan-status.processed { background: var(--success); color: #fff; }
+  .chan-status.processing { background: var(--warn); color: #fff; }
+  .chan-status.failed { background: var(--error); color: #fff; }
+  .progress-bar {
+    height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin: 6px 0;
+  }
+  .progress-fill { height: 100%; background: var(--accent); transition: width 0.3s; }
   @media (max-width: 640px) {
     table { font-size: 12px; }
     th, td { padding: 4px 5px; }
     header { padding: 12px 14px 10px; }
+    .chan-thumb { width: 72px; height: 40px; }
   }
 </style>
 </head>
@@ -130,25 +121,53 @@
 
 <header>
   <h1>🍷 ワイン抽出ツール</h1>
-  <div class="sub">YouTubeのブラインドテイスティング動画からワイン情報を自動で表にします</div>
+  <div class="sub">YouTube の動画URL または チャンネルURL からワイン情報を自動で表にします</div>
 </header>
 
 <main>
 
   <!-- 入力カード -->
   <section class="card">
-    <label for="url">YouTube URL</label>
+    <label for="url">URL（動画 or チャンネル）</label>
     <div class="row">
       <div class="grow">
-        <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+        <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=... or https://www.youtube.com/@channel" autocomplete="off">
       </div>
-      <button id="extract" class="primary">ワインを抽出</button>
+      <button id="go" class="primary">読み込む</button>
+    </div>
+    <div class="sub" style="margin-top: 4px;">
+      動画URL: そのままワインを抽出 ／ チャンネルURL: 動画一覧を表示して選んで一括抽出
     </div>
     <div id="msg" style="display:none"></div>
     <div id="meta" class="meta-line" style="display:none"></div>
   </section>
 
-  <!-- 今回抽出したワインの編集テーブル -->
+  <!-- チャンネル動画一覧 -->
+  <section class="card" id="channel-card" style="display:none">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+      <strong id="channel-title" style="font-size:14px;">チャンネル動画一覧</strong>
+      <div class="sub" id="channel-count"></div>
+    </div>
+    <div class="row" style="margin-bottom: 8px;">
+      <div class="grow">
+        <input id="chan-filter" type="search" placeholder="タイトルで絞り込み">
+      </div>
+      <button id="chan-select-all" class="ghost">全選択</button>
+      <button id="chan-select-none" class="ghost">全解除</button>
+      <button id="chan-select-unproc" class="ghost">未処理のみ選択</button>
+    </div>
+    <div id="chan-list" class="chan-list"></div>
+    <div class="toolbar" style="margin-top: 12px;">
+      <button id="chan-load-more" class="ghost" style="display:none">もっと読み込む（次のページ）</button>
+      <button id="chan-extract" class="primary">選択した動画からワインを一括抽出</button>
+    </div>
+    <div id="batch-progress" style="display:none">
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      <div class="sub" id="progress-text"></div>
+    </div>
+  </section>
+
+  <!-- 単一動画抽出結果 -->
   <section class="card" id="result-card" style="display:none">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
       <strong style="font-size:14px;">抽出結果（編集可）</strong>
@@ -177,7 +196,7 @@
     </div>
   </section>
 
-  <!-- 保存済みワイン一覧 -->
+  <!-- 保存済み一覧 -->
   <section class="card accumulated" id="accum-card">
     <h2>保存済み一覧 <span id="accum-count" class="sub"></span></h2>
     <div id="accum-body"></div>
@@ -202,118 +221,97 @@ const COLS = [
   { key: 'region',    label: '産地' },
   { key: 'vintage',   label: 'ヴィンテージ' },
 ];
+const BATCH_DELAY_MS = 4500; // 15 RPM = 4秒/req、余裕をもって4.5秒
 
-let currentContext = null; // { videoId, videoTitle, publishedDate, youtubeUrl }
+let currentContext = null; // 単一動画抽出時のメタ
+let channelState = null;   // { channelTitle, channelId, videos: [{...}], continuation }
 
 // ---------- ユーティリティ ----------
 function showMsg(text, level = 'info') {
   const el = document.getElementById('msg');
-  el.textContent = text;
-  el.className = 'msg ' + level;
-  el.style.display = 'block';
+  el.textContent = text; el.className = 'msg ' + level; el.style.display = 'block';
 }
 function hideMsg() { document.getElementById('msg').style.display = 'none'; }
-
 function setMeta(html) {
   const el = document.getElementById('meta');
   if (!html) { el.style.display = 'none'; el.innerHTML = ''; return; }
-  el.innerHTML = html;
-  el.style.display = 'block';
+  el.innerHTML = html; el.style.display = 'block';
 }
-
-function loadAccum() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) { return []; }
+function loadAccum() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch (e) { return []; } }
+function saveAccum(arr) { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }
+function processedVideoIds() {
+  const set = new Set();
+  for (const r of loadAccum()) if (r.videoId) set.add(r.videoId);
+  return set;
 }
-function saveAccum(arr) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
-}
-
-function escapeHtml(s) {
-  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
+function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function toCsv(rows, headers) {
-  const q = v => {
-    const s = String(v ?? '');
-    if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
-    return s;
-  };
-  const lines = [headers.map(h => q(h.label)).join(',')];
-  for (const r of rows) lines.push(headers.map(h => q(r[h.key])).join(','));
-  return lines.join('\r\n');
+  const q = v => { const s = String(v ?? ''); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  return [headers.map(h => q(h.label)).join(','), ...rows.map(r => headers.map(h => q(r[h.key])).join(','))].join('\r\n');
 }
 function toTsv(rows, headers) {
   const clean = v => String(v ?? '').replace(/[\t\r\n]/g, ' ');
-  const lines = [headers.map(h => clean(h.label)).join('\t')];
-  for (const r of rows) lines.push(headers.map(h => clean(r[h.key])).join('\t'));
-  return lines.join('\n');
+  return [headers.map(h => clean(h.label)).join('\t'), ...rows.map(r => headers.map(h => clean(r[h.key])).join('\t'))].join('\n');
 }
-
 function download(filename, text, mime = 'text/csv;charset=utf-8;') {
-  // Excelで文字化けしないようBOM付与（CSV時）
   const bom = mime.startsWith('text/csv') ? '﻿' : '';
   const blob = new Blob([bom + text], { type: mime });
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
+  a.href = URL.createObjectURL(blob); a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-
 async function copyToClipboard(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch (e) {
-    // fallback
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch (e) {
+    const ta = document.createElement('textarea'); ta.value = text;
+    document.body.appendChild(ta); ta.select();
     try { document.execCommand('copy'); document.body.removeChild(ta); return true; }
     catch (e2) { document.body.removeChild(ta); return false; }
   }
 }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ---------- 抽出テーブル ----------
+// ---------- URL 分類 ----------
+function classifyUrl(input) {
+  const s = String(input || '').trim();
+  if (!s) return 'unknown';
+  if (/[?&]v=[A-Za-z0-9_-]{11}/.test(s)) return 'video';
+  if (/youtu\.be\/[A-Za-z0-9_-]{11}/.test(s)) return 'video';
+  if (/youtube\.com\/(embed|shorts|live)\/[A-Za-z0-9_-]{11}/.test(s)) return 'video';
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return 'video';
+  if (/youtube\.com\/@[^/?#\s]+/.test(s)) return 'channel';
+  if (/youtube\.com\/channel\/UC[\w-]+/.test(s)) return 'channel';
+  if (/youtube\.com\/(c|user)\/[^/?#\s]+/.test(s)) return 'channel';
+  if (/^@[\w.-]+$/.test(s)) return 'channel';
+  return 'unknown';
+}
+
+// ---------- 単一動画: 抽出テーブル ----------
 function renderRow(wine = {}) {
   const tr = document.createElement('tr');
   for (const c of COLS) {
     const td = document.createElement('td');
     const div = document.createElement('div');
-    div.contentEditable = 'true';
-    div.textContent = wine[c.key] || '';
-    div.dataset.key = c.key;
-    div.dataset.placeholder = c.label;
-    td.appendChild(div);
-    tr.appendChild(td);
+    div.contentEditable = 'true'; div.textContent = wine[c.key] || '';
+    div.dataset.key = c.key; div.dataset.placeholder = c.label;
+    td.appendChild(div); tr.appendChild(td);
   }
-  const actTd = document.createElement('td');
-  actTd.className = 'row-actions';
-  const del = document.createElement('button');
-  del.textContent = '削除';
+  const actTd = document.createElement('td'); actTd.className = 'row-actions';
+  const del = document.createElement('button'); del.textContent = '削除';
   del.onclick = () => tr.remove();
-  actTd.appendChild(del);
-  tr.appendChild(actTd);
+  actTd.appendChild(del); tr.appendChild(actTd);
   return tr;
 }
-
 function collectRows(tbody) {
   const rows = [];
   for (const tr of tbody.querySelectorAll('tr')) {
     const row = {};
-    for (const div of tr.querySelectorAll('[contenteditable]')) {
-      row[div.dataset.key] = div.textContent.trim();
-    }
-    // 全カラム空なら捨てる
+    for (const div of tr.querySelectorAll('[contenteditable]')) row[div.dataset.key] = div.textContent.trim();
     if (COLS.some(c => (row[c.key] || '').length > 0)) rows.push(row);
   }
   return rows;
 }
-
 function renderTable(wines) {
   const tbody = document.querySelector('#tbl tbody');
   tbody.innerHTML = '';
@@ -328,7 +326,7 @@ function renderAccum() {
   document.getElementById('accum-count').textContent = arr.length ? `（${arr.length}本）` : '';
   const body = document.getElementById('accum-body');
   if (!arr.length) {
-    body.innerHTML = '<div class="empty">まだ保存されたワインはありません。上で抽出してから「この結果を一覧に保存」を押してください。</div>';
+    body.innerHTML = '<div class="empty">まだ保存されたワインはありません。上で抽出してから「一覧に保存」を押してください。</div>';
     return;
   }
   const headers = [...COLS, { key: 'videoTitle', label: '動画タイトル' }, { key: 'youtubeUrl', label: 'YouTube URL' }, { key: 'savedAt', label: '保存日時' }];
@@ -339,53 +337,136 @@ function renderAccum() {
     html += '<tr>';
     for (const h of headers) {
       const v = r[h.key] || '';
-      if (h.key === 'youtubeUrl' && v) {
-        html += `<td><a href="${escapeHtml(v)}" target="_blank" rel="noopener">開く</a></td>`;
-      } else {
-        html += `<td>${escapeHtml(v)}</td>`;
-      }
+      if (h.key === 'youtubeUrl' && v) html += `<td><a href="${escapeHtml(v)}" target="_blank" rel="noopener">開く</a></td>`;
+      else html += `<td>${escapeHtml(v)}</td>`;
     }
-    html += `<td class="row-actions"><button data-idx="${i}" class="del-accum">削除</button></td>`;
-    html += '</tr>';
+    html += `<td class="row-actions"><button data-idx="${i}" class="del-accum">削除</button></td></tr>`;
   });
   html += '</tbody></table></div>';
   body.innerHTML = html;
   body.querySelectorAll('.del-accum').forEach(btn => {
     btn.onclick = () => {
       const idx = parseInt(btn.dataset.idx, 10);
-      const cur = loadAccum();
-      cur.splice(idx, 1);
-      saveAccum(cur);
-      renderAccum();
+      const cur = loadAccum(); cur.splice(idx, 1);
+      saveAccum(cur); renderAccum();
+      renderChannelList(); // 未処理色を再描画
     };
   });
 }
 
-// ---------- ハンドラ ----------
-async function doExtract() {
-  hideMsg();
-  const btn = document.getElementById('extract');
-  const url = document.getElementById('url').value.trim();
-  if (!url) { showMsg('URL を入力してください', 'warn'); return; }
+// ---------- チャンネル一覧 ----------
+function renderChannelList() {
+  if (!channelState) return;
+  const box = document.getElementById('chan-list');
+  const filter = document.getElementById('chan-filter').value.trim().toLowerCase();
+  const processed = processedVideoIds();
+  const items = channelState.videos.filter(v => !filter || (v.title || '').toLowerCase().includes(filter));
+  const total = channelState.videos.length;
+  const filteredCount = items.length;
+  document.getElementById('channel-count').textContent = `${filteredCount} / ${total} 本表示中 ／ 保存済み ${processed.size} 本`;
+  if (!items.length) {
+    box.innerHTML = '<div class="empty">該当する動画がありません</div>';
+    return;
+  }
+  let html = '';
+  for (const v of items) {
+    const isProcessed = processed.has(v.id);
+    const state = v._state || '';
+    const cls = state || (isProcessed ? 'processed' : '');
+    const badge = state
+      ? `<span class="chan-status ${state}">${state === 'processing' ? '処理中' : state === 'processed' ? '完了' : '失敗'}</span>`
+      : isProcessed ? '<span class="chan-status processed">保存済み</span>' : '';
+    const disabled = isProcessed && !state ? 'disabled' : '';
+    const checked = !isProcessed ? 'checked' : '';
+    html += `
+      <div class="chan-item ${cls}">
+        <input type="checkbox" data-id="${escapeHtml(v.id)}" class="chan-check" ${checked} ${disabled}>
+        <img class="chan-thumb" src="${escapeHtml(v.thumbnail || `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`)}" alt="" loading="lazy">
+        <div class="chan-body">
+          <div class="chan-title"><a href="https://www.youtube.com/watch?v=${escapeHtml(v.id)}" target="_blank" rel="noopener">${escapeHtml(v.title || '(タイトルなし)')}</a></div>
+          <div class="chan-meta">
+            ${v.publishedText ? `<span>${escapeHtml(v.publishedText)}</span>` : ''}
+            ${v.views ? `<span>${escapeHtml(v.views)}</span>` : ''}
+            ${badge}
+          </div>
+        </div>
+      </div>`;
+  }
+  box.innerHTML = html;
+}
 
-  btn.disabled = true;
-  const orig = btn.innerHTML;
-  btn.innerHTML = '<span class="spinner"></span>抽出中…';
-
+async function loadChannel(url) {
+  hideMsg(); setMeta('');
+  document.getElementById('channel-card').style.display = 'none';
+  document.getElementById('result-card').style.display = 'none';
+  const go = document.getElementById('go');
+  const orig = go.innerHTML;
+  go.disabled = true; go.innerHTML = '<span class="spinner"></span>読み込み中…';
   try {
-    const r = await fetch('/api/extract', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const r = await fetch('/api/channel', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
     });
     const d = await r.json();
-    if (!r.ok) {
-      showMsg(d.error || `エラー (${r.status})`, 'error');
-      return;
-    }
+    if (!r.ok) { showMsg(d.error || `エラー (${r.status})`, 'error'); return; }
+    channelState = {
+      channelTitle: d.channelTitle || '',
+      channelId: d.channelId || '',
+      videos: d.videos || [],
+      continuation: d.continuation || null,
+    };
+    document.getElementById('channel-title').textContent = channelState.channelTitle || 'チャンネル動画一覧';
+    document.getElementById('chan-load-more').style.display = channelState.continuation ? 'inline-block' : 'none';
+    document.getElementById('channel-card').style.display = 'block';
+    renderChannelList();
+    showMsg(`${channelState.videos.length} 本の動画を読み込みました。${channelState.continuation ? '「もっと読み込む」で更に取得できます。' : ''}`, 'info');
+  } catch (e) {
+    showMsg('通信に失敗しました: ' + e.message, 'error');
+  } finally {
+    go.disabled = false; go.innerHTML = orig;
+  }
+}
+
+async function loadMoreChannel() {
+  if (!channelState?.continuation) return;
+  const btn = document.getElementById('chan-load-more');
+  const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner" style="border-color:var(--text);border-top-color:transparent"></span>読み込み中…';
+  try {
+    const r = await fetch('/api/channel', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ continuation: channelState.continuation }),
+    });
+    const d = await r.json();
+    if (!r.ok) { showMsg(d.error || `エラー (${r.status})`, 'error'); return; }
+    channelState.videos.push(...(d.videos || []));
+    channelState.continuation = d.continuation || null;
+    document.getElementById('chan-load-more').style.display = channelState.continuation ? 'inline-block' : 'none';
+    renderChannelList();
+    showMsg(`累計 ${channelState.videos.length} 本読み込み済み。`, 'info');
+  } catch (e) {
+    showMsg('通信に失敗しました: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+  }
+}
+
+// ---------- 単一動画抽出 ----------
+async function extractSingle(url) {
+  hideMsg(); setMeta('');
+  document.getElementById('channel-card').style.display = 'none';
+  const go = document.getElementById('go');
+  const orig = go.innerHTML;
+  go.disabled = true; go.innerHTML = '<span class="spinner"></span>抽出中…';
+  try {
+    const r = await fetch('/api/extract', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const d = await r.json();
+    if (!r.ok) { showMsg(d.error || `エラー (${r.status})`, 'error'); return; }
     currentContext = {
-      videoId: d.videoId,
-      videoTitle: d.title || '',
+      videoId: d.videoId, videoTitle: d.title || '',
       publishedDate: (d.publishedDate || '').slice(0, 10),
       youtubeUrl: `https://www.youtube.com/watch?v=${d.videoId}`,
     };
@@ -396,19 +477,12 @@ async function doExtract() {
     if (d.transcriptNote) parts.push(`<span style="color:var(--warn)">${escapeHtml(d.transcriptNote)}</span>`);
     parts.push(`<a href="${escapeHtml(currentContext.youtubeUrl)}" target="_blank" rel="noopener">動画を開く</a>`);
     setMeta(parts.join(' ／ '));
-
-    if (!d.wines || !d.wines.length) {
-      showMsg('ワインを検出できませんでした。手動で行を追加して埋めてください。', 'warn');
-      renderTable([]);
-    } else {
-      showMsg(`${d.wines.length} 本を抽出しました。編集してから「一覧に保存」してください。`, 'info');
-      renderTable(d.wines);
-    }
+    if (!d.wines?.length) { showMsg('ワインを検出できませんでした。手動で行を追加して埋めてください。', 'warn'); renderTable([]); }
+    else { showMsg(`${d.wines.length} 本を抽出しました。編集してから「一覧に保存」してください。`, 'info'); renderTable(d.wines); }
   } catch (e) {
     showMsg('通信に失敗しました: ' + e.message, 'error');
   } finally {
-    btn.disabled = false;
-    btn.innerHTML = orig;
+    go.disabled = false; go.innerHTML = orig;
   }
 }
 
@@ -420,15 +494,14 @@ function saveCurrentToAccum() {
   const ctx = currentContext || {};
   const enriched = rows.map(r => ({
     ...r,
+    videoId: ctx.videoId || '',
     videoTitle: ctx.videoTitle || '',
     publishedDate: ctx.publishedDate || '',
     youtubeUrl: ctx.youtubeUrl || '',
     savedAt,
   }));
-  const cur = loadAccum();
-  cur.push(...enriched);
-  saveAccum(cur);
-  renderAccum();
+  const cur = loadAccum(); cur.push(...enriched); saveAccum(cur);
+  renderAccum(); renderChannelList();
   showMsg(`${rows.length} 本を一覧に追加しました。`, 'info');
 }
 
@@ -438,8 +511,7 @@ function downloadCurrent() {
   const ctx = currentContext || {};
   const headers = [...COLS, { key: 'videoTitle', label: '動画タイトル' }, { key: 'youtubeUrl', label: 'YouTube URL' }];
   const enriched = rows.map(r => ({ ...r, videoTitle: ctx.videoTitle || '', youtubeUrl: ctx.youtubeUrl || '' }));
-  const name = 'wines-' + (ctx.videoId || 'export') + '.csv';
-  download(name, toCsv(enriched, headers));
+  download('wines-' + (ctx.videoId || 'export') + '.csv', toCsv(enriched, headers));
 }
 async function copyCurrent() {
   const rows = collectRows(document.querySelector('#tbl tbody'));
@@ -466,22 +538,101 @@ async function copyAll() {
 }
 function clearAll() {
   if (!confirm('保存済みのワイン一覧をすべて削除しますか？（この操作は元に戻せません）')) return;
-  localStorage.removeItem(STORAGE_KEY);
-  renderAccum();
+  localStorage.removeItem(STORAGE_KEY); renderAccum(); renderChannelList();
 }
 
-// ---------- 初期化 ----------
-document.getElementById('extract').addEventListener('click', doExtract);
-document.getElementById('url').addEventListener('keydown', e => { if (e.key === 'Enter') doExtract(); });
-document.getElementById('add-row').addEventListener('click', () => {
-  document.querySelector('#tbl tbody').appendChild(renderRow());
-});
+// ---------- チャンネル: バッチ抽出 ----------
+let batchAbort = false;
+async function batchExtract() {
+  if (!channelState) return;
+  const selectedIds = [...document.querySelectorAll('.chan-check:checked:not(:disabled)')].map(c => c.dataset.id);
+  const targets = channelState.videos.filter(v => selectedIds.includes(v.id));
+  if (!targets.length) { showMsg('抽出する動画が選択されていません。', 'warn'); return; }
+  if (!confirm(`${targets.length} 本の動画からワインを抽出します。約 ${Math.ceil(targets.length * BATCH_DELAY_MS / 60000)} 分かかる見込みです。開始しますか？`)) return;
+
+  batchAbort = false;
+  const btn = document.getElementById('chan-extract');
+  const origBtn = btn.innerHTML;
+  btn.innerHTML = '中止する'; btn.classList.remove('primary'); btn.onclick = () => { batchAbort = true; btn.disabled = true; btn.textContent = '中止処理中...'; };
+
+  const prog = document.getElementById('batch-progress');
+  const fill = document.getElementById('progress-fill');
+  const text = document.getElementById('progress-text');
+  prog.style.display = 'block';
+
+  let done = 0, ok = 0, ng = 0, added = 0;
+  const now = new Date();
+  const savedAt = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+
+  for (const v of targets) {
+    if (batchAbort) break;
+    v._state = 'processing'; renderChannelList();
+    text.textContent = `処理中 ${done + 1}/${targets.length} - ${v.title || v.id}`;
+    try {
+      const r = await fetch('/api/extract', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: `https://www.youtube.com/watch?v=${v.id}` }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      const wines = d.wines || [];
+      const enriched = wines.map(w => ({
+        ...w,
+        videoId: d.videoId, videoTitle: d.title || v.title || '',
+        publishedDate: (d.publishedDate || '').slice(0, 10),
+        youtubeUrl: `https://www.youtube.com/watch?v=${d.videoId}`,
+        savedAt,
+      }));
+      if (enriched.length) { const cur = loadAccum(); cur.push(...enriched); saveAccum(cur); added += enriched.length; }
+      v._state = 'processed'; ok += 1;
+    } catch (e) {
+      v._state = 'failed'; ng += 1;
+      console.error('batch error for', v.id, e);
+    }
+    done += 1;
+    fill.style.width = (done / targets.length * 100) + '%';
+    text.textContent = `完了 ${done}/${targets.length}（成功 ${ok} / 失敗 ${ng} / 追加ワイン ${added} 本）`;
+    renderChannelList(); renderAccum();
+    if (done < targets.length && !batchAbort) await sleep(BATCH_DELAY_MS);
+  }
+
+  btn.innerHTML = origBtn; btn.classList.add('primary'); btn.disabled = false;
+  btn.onclick = batchExtract;
+  showMsg(`バッチ完了: 成功 ${ok} / 失敗 ${ng} / ワイン ${added} 本を追加${batchAbort ? '（中止しました）' : ''}`, ng ? 'warn' : 'info');
+}
+
+// ---------- ハンドラ ----------
+function doGo() {
+  const url = document.getElementById('url').value.trim();
+  if (!url) { showMsg('URL を入力してください', 'warn'); return; }
+  const kind = classifyUrl(url);
+  if (kind === 'video') extractSingle(url);
+  else if (kind === 'channel') loadChannel(url);
+  else { showMsg('YouTube の動画URL、チャンネルURL、または @handle を入れてください。', 'warn'); }
+}
+
+document.getElementById('go').addEventListener('click', doGo);
+document.getElementById('url').addEventListener('keydown', e => { if (e.key === 'Enter') doGo(); });
+document.getElementById('add-row').addEventListener('click', () => { document.querySelector('#tbl tbody').appendChild(renderRow()); });
 document.getElementById('save-list').addEventListener('click', saveCurrentToAccum);
 document.getElementById('csv-current').addEventListener('click', downloadCurrent);
 document.getElementById('copy-current').addEventListener('click', copyCurrent);
 document.getElementById('csv-all').addEventListener('click', downloadAll);
 document.getElementById('copy-all').addEventListener('click', copyAll);
 document.getElementById('clear-all').addEventListener('click', clearAll);
+document.getElementById('chan-load-more').addEventListener('click', loadMoreChannel);
+document.getElementById('chan-extract').addEventListener('click', batchExtract);
+document.getElementById('chan-filter').addEventListener('input', renderChannelList);
+document.getElementById('chan-select-all').addEventListener('click', () => {
+  document.querySelectorAll('.chan-check:not(:disabled)').forEach(c => c.checked = true);
+});
+document.getElementById('chan-select-none').addEventListener('click', () => {
+  document.querySelectorAll('.chan-check').forEach(c => c.checked = false);
+});
+document.getElementById('chan-select-unproc').addEventListener('click', () => {
+  const processed = processedVideoIds();
+  document.querySelectorAll('.chan-check').forEach(c => { c.checked = !processed.has(c.dataset.id); });
+});
 renderAccum();
 </script>
 
