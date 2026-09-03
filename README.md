@@ -2,7 +2,7 @@
 
 YouTube のブラインドテイスティング動画から、出題ワインの情報（ワイン名 / 生産者 / 品種 / 国 / 産地 / ヴィンテージ）を自動で抽出して表にする Web ツール。ブラウザ内 (localStorage) に一覧を蓄積し、CSV／TSV でエクスポート可能。
 
-- 本番URL: (デプロイ後に追記)
+- 本番URL: https://youtube-wine-tool.url-image-tool.workers.dev
 - リポジトリ: mkttkhsh/youtube-wine-tool (public)
 - ホスティング: Cloudflare Workers（Worker が UI・字幕取得・Gemini呼び出しを一体で担う）
 
