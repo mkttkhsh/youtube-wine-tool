@@ -88,6 +88,27 @@ async function ytApi(env, endpoint, params) {
   return d;
 }
 
+// ---------- Fly.io 字幕サービス ----------
+async function fetchTranscript(env, videoId) {
+  if (!env.TRANSCRIPT_URL) return { text: '', lang: null, kind: null, note: 'TRANSCRIPT_URL 未設定' };
+  const url = `${env.TRANSCRIPT_URL.replace(/\/+$/, '')}/transcript?v=${encodeURIComponent(videoId)}`;
+  const headers = {};
+  if (env.TRANSCRIPT_AUTH_TOKEN) headers['X-Auth-Token'] = env.TRANSCRIPT_AUTH_TOKEN;
+  try {
+    const r = await fetch(url, { headers });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return { text: '', lang: null, kind: null, note: `字幕サービスエラー (${r.status}): ${(d.error || '').slice(0, 80)}` };
+    return {
+      text: d.text || '',
+      lang: d.lang || null,
+      kind: d.kind || null,
+      note: d.note || '',
+    };
+  } catch (e) {
+    return { text: '', lang: null, kind: null, note: '字幕サービス通信失敗: ' + e.message };
+  }
+}
+
 // ---------- Gemini 抽出 ----------
 async function extractWinesWithGemini(env, ctx) {
   if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY が未設定です');
@@ -139,10 +160,11 @@ async function extractWinesWithGemini(env, ctx) {
   }
 }
 
-function buildWinePrompt({ title, description }) {
+function buildWinePrompt({ title, description, transcript }) {
   const trimmedDesc = (description || '').slice(0, 5000);
+  const trimmedScript = (transcript || '').slice(0, 25000);
   return `# 役割
-あなたはワインに詳しいアシスタントです。以下は YouTube のブラインドテイスティング動画のタイトルと概要欄です。この動画に「出題された」もしくは「登場した」ワインを、1本 = 1レコードで JSON に構造化して抽出してください。
+あなたはワインに詳しいアシスタントです。以下は YouTube のブラインドテイスティング動画のタイトル・概要欄・文字起こしです。この動画で「出題された」もしくは「テイスターが実際に飲んだ」ワインを、1本 = 1レコードで JSON に構造化して抽出してください。
 
 # 入力
 ## 動画タイトル
@@ -151,10 +173,14 @@ ${title || '(不明)'}
 ## 概要欄
 ${trimmedDesc || '(なし)'}
 
+## 文字起こし（自動字幕を含むため多少の誤変換あり）
+${trimmedScript || '(なし)'}
+
 # 抽出ルール
 - 出題ワイン（＝味わってブラインドで当てにいくワイン）を対象。比較で名前だけ挙がっているワインや、講座・イベント告知のワインは除外。
-- 概要欄に「【本日のワイン】」「【テクニカルデータ】」「品種：」「産地：」「ヴィンテージ：」等のキーがある場合、それらから丁寧に読み取る。
-- 迷ったら wineName だけ埋めて残りは空文字にする。推測は書かない（誤情報より空欄が良い）。
+- 概要欄に「【本日のワイン】」「【テクニカルデータ】」「品種：」「産地：」「ヴィンテージ：」等のキーがある場合、それを最優先で読む。
+- **ヴィンテージ**は概要欄には無い場合が多い。文字起こし中の「〜年」「20XX年産」「XX年ですね」等の発言から拾う（特に答え合わせの終盤に多い）。字幕は自動生成で「2016」を「2016年ですね」と読み上げていることもあれば「二千十六年」と表記されることもある。数字表記に正規化する。
+- 迷ったら wineName だけ埋めて残りは空文字にする。推測は書かない（誤情報より空欄が良い）。特にヴィンテージは、確信が持てないなら空欄で。
 - 各項目の書き方:
   - wineName: 商品名。生産者名は除く（例：「シャトー・マルゴー 2015」ではなく「シャトー・マルゴー」）。ラベル表記そのままでも可。
   - producer: 生産者名（例：「シャトー・マルゴー」「ドメーヌ・ルフレーヴ」「ラングマン」）。「〜／」の後にある名前は多くの場合これに該当。
@@ -193,9 +219,12 @@ async function handleExtract(request, env) {
   const description = s.description || '';
   const publishedDate = s.publishedAt || '';
 
+  // 字幕を Fly.io サービスから取得（失敗しても続行）
+  const tr = await fetchTranscript(env, videoId);
+
   let wines = [];
   try {
-    wines = await extractWinesWithGemini(env, { title, description });
+    wines = await extractWinesWithGemini(env, { title, description, transcript: tr.text });
   } catch (e) {
     return json({ error: e.message, videoId, title, description, publishedDate }, 502);
   }
@@ -206,6 +235,10 @@ async function handleExtract(request, env) {
     description,
     publishedDate,
     channelTitle: s.channelTitle || '',
+    transcriptLang: tr.lang,
+    transcriptKind: tr.kind,
+    transcriptChars: (tr.text || '').length,
+    transcriptNote: tr.note || '',
     wines,
   });
 }
