@@ -160,9 +160,11 @@
 
     <!-- 選択中プレビュー -->
     <div id="selected-preview" style="margin-top: 12px; display:none;">
-      <div class="row" style="align-items:center;">
+      <div class="row" style="align-items:center; gap: 6px;">
         <strong id="selected-summary" style="font-size:13px; flex:1;"></strong>
         <button id="toggle-selected-list" class="ghost" style="font-size:12px; padding:4px 10px;">一覧を表示 ▼</button>
+        <button id="csv-selected" class="ghost" style="font-size:12px; padding:4px 10px;">CSVダウンロード</button>
+        <button id="copy-selected" class="ghost" style="font-size:12px; padding:4px 10px;">クリップボードにコピー（TSV）</button>
       </div>
       <div id="selected-list" class="chan-list" style="display:none; margin-top:8px; max-height:40vh;"></div>
     </div>
@@ -650,6 +652,44 @@ function renderSelectedListHtml(selected) {
   return html;
 }
 
+// 選択中動画の CSV/TSV 用の行を組み立て
+function selectedToRows() {
+  const failedIds = new Set(loadFailed().map(f => f.videoId));
+  const chan = channelState?.channelTitle || '';
+  return getSelectedVideos().map((v, i) => ({
+    index: i + 1,
+    videoId: v.id,
+    videoTitle: v.title || '',
+    youtubeUrl: `https://www.youtube.com/watch?v=${v.id}`,
+    publishedText: v.publishedText || '',
+    views: v.views || '',
+    channelTitle: chan,
+    isFailedRetry: failedIds.has(v.id) ? 'yes' : '',
+  }));
+}
+const SELECTED_HEADERS = [
+  { key: 'index',         label: '#' },
+  { key: 'videoTitle',    label: '動画タイトル' },
+  { key: 'youtubeUrl',    label: 'YouTube URL' },
+  { key: 'videoId',       label: '動画ID' },
+  { key: 'publishedText', label: '公開日' },
+  { key: 'views',         label: '視聴回数' },
+  { key: 'channelTitle',  label: 'チャンネル' },
+  { key: 'isFailedRetry', label: '失敗リトライ' },
+];
+function downloadSelectedCsv() {
+  const rows = selectedToRows();
+  if (!rows.length) { showMsg('選択中の動画がありません。', 'warn'); return; }
+  const filename = 'selected-videos-' + (channelState?.channelId || 'export') + '.csv';
+  download(filename, toCsv(rows, SELECTED_HEADERS));
+}
+async function copySelectedTsv() {
+  const rows = selectedToRows();
+  if (!rows.length) { showMsg('選択中の動画がありません。', 'warn'); return; }
+  const ok = await copyToClipboard(toTsv(rows, SELECTED_HEADERS));
+  showMsg(ok ? `選択中 ${rows.length} 本の一覧を TSV でコピーしました（Sheets/Excelに貼付可）` : 'クリップボードへのコピーに失敗しました', ok ? 'info' : 'error');
+}
+
 function toggleSelectedList() {
   const list = document.getElementById('selected-list');
   const btn = document.getElementById('toggle-selected-list');
@@ -946,6 +986,8 @@ document.getElementById('chan-select-unproc').addEventListener('click', () => {
   renderSelectedPreview();
 });
 document.getElementById('toggle-selected-list').addEventListener('click', toggleSelectedList);
+document.getElementById('csv-selected').addEventListener('click', downloadSelectedCsv);
+document.getElementById('copy-selected').addEventListener('click', copySelectedTsv);
 document.getElementById('failed-retry-selected').addEventListener('click', retryFailedSelected);
 document.getElementById('csv-failed').addEventListener('click', downloadFailed);
 document.getElementById('clear-failed').addEventListener('click', clearFailedList);
