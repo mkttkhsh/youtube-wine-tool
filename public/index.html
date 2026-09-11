@@ -207,12 +207,34 @@
     </div>
   </section>
 
+  <!-- 抽出失敗一覧 -->
+  <section class="card" id="failed-card" style="display:none; border-top: 2px solid var(--error);">
+    <h2 style="font-size:14px; margin:0 0 8px 0;">
+      抽出失敗した動画 <span id="failed-count" class="sub"></span>
+    </h2>
+    <div class="sub" style="margin-bottom:8px;">
+      エラーで抽出できなかった動画、および 0 件返された動画（概要欄も字幕もヒントが無かった等）。
+      チェックしてリトライするか、リンクから直接動画を見て手入力してください。
+    </div>
+    <div id="failed-body"></div>
+    <div class="toolbar">
+      <button id="failed-retry-selected" class="primary" style="display:none">選択した動画をリトライ</button>
+      <button id="csv-failed" class="ghost">失敗一覧をCSVダウンロード</button>
+      <button id="clear-failed" class="ghost" style="color: var(--error)">失敗一覧をクリア</button>
+    </div>
+    <div id="failed-progress" style="display:none">
+      <div class="progress-bar"><div class="progress-fill" id="failed-progress-fill" style="width:0%"></div></div>
+      <div class="sub" id="failed-progress-text"></div>
+    </div>
+  </section>
+
 </main>
 
 <script>
 'use strict';
 
 const STORAGE_KEY = 'youtube-wine-tool:accumulated:v1';
+const FAILED_KEY  = 'youtube-wine-tool:failed:v1';
 const COLS = [
   { key: 'wineName',  label: 'ワイン名' },
   { key: 'producer',  label: '生産者' },
@@ -239,10 +261,29 @@ function setMeta(html) {
 }
 function loadAccum() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch (e) { return []; } }
 function saveAccum(arr) { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }
+function loadFailed() { try { return JSON.parse(localStorage.getItem(FAILED_KEY) || '[]'); } catch (e) { return []; } }
+function saveFailed(arr) { localStorage.setItem(FAILED_KEY, JSON.stringify(arr)); }
+
+function addFailed(entry) {
+  // 同じ videoId が既にあれば上書き
+  const arr = loadFailed().filter(f => f.videoId !== entry.videoId);
+  arr.push(entry);
+  saveFailed(arr);
+}
+
+function removeFailed(videoId) {
+  saveFailed(loadFailed().filter(f => f.videoId !== videoId));
+}
+
+// 成功・失敗のどちらでも「一度処理した」= リストに出ている＝スキップ対象
 function processedVideoIds() {
   const set = new Set();
   for (const r of loadAccum()) if (r.videoId) set.add(r.videoId);
+  for (const r of loadFailed()) if (r.videoId) set.add(r.videoId);
   return set;
+}
+function isFailedVideo(videoId) {
+  return loadFailed().some(f => f.videoId === videoId);
 }
 function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function toCsv(rows, headers) {
@@ -354,6 +395,143 @@ function renderAccum() {
   });
 }
 
+// ---------- 失敗動画リスト ----------
+function renderFailed() {
+  const arr = loadFailed();
+  const card = document.getElementById('failed-card');
+  const cntEl = document.getElementById('failed-count');
+  const retryBtn = document.getElementById('failed-retry-selected');
+  if (!arr.length) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+  cntEl.textContent = `（${arr.length}本）`;
+  retryBtn.style.display = 'inline-block';
+
+  // 新しい失敗を上に
+  const sorted = [...arr].sort((a, b) => (b.failedAt || '').localeCompare(a.failedAt || ''));
+  let html = '<div style="overflow-x:auto"><table><thead><tr>';
+  html += '<th style="width:32px"><input type="checkbox" id="failed-check-all" checked></th>';
+  html += '<th>動画タイトル</th><th>理由</th><th>失敗日時</th><th>URL</th><th></th>';
+  html += '</tr></thead><tbody>';
+  for (const f of sorted) {
+    html += '<tr data-id="' + escapeHtml(f.videoId) + '">';
+    html += `<td><input type="checkbox" class="failed-check" data-id="${escapeHtml(f.videoId)}" checked></td>`;
+    html += `<td>${escapeHtml(f.videoTitle || '(タイトルなし)')}</td>`;
+    html += `<td style="color:var(--error); font-size:11px;">${escapeHtml((f.error || '').slice(0, 100))}</td>`;
+    html += `<td class="sub">${escapeHtml(f.failedAt || '')}</td>`;
+    html += `<td><a href="${escapeHtml(f.youtubeUrl)}" target="_blank" rel="noopener">開く</a></td>`;
+    html += `<td class="row-actions"><button class="del-failed" data-id="${escapeHtml(f.videoId)}">削除</button></td>`;
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+  document.getElementById('failed-body').innerHTML = html;
+
+  // 全選択チェック
+  const checkAll = document.getElementById('failed-check-all');
+  if (checkAll) {
+    checkAll.onchange = () => {
+      document.querySelectorAll('.failed-check').forEach(c => c.checked = checkAll.checked);
+    };
+  }
+  document.querySelectorAll('.del-failed').forEach(btn => {
+    btn.onclick = () => {
+      removeFailed(btn.dataset.id);
+      renderFailed(); renderChannelList();
+    };
+  });
+}
+
+function downloadFailed() {
+  const arr = loadFailed();
+  if (!arr.length) return;
+  const headers = [
+    { key: 'videoId', label: '動画ID' },
+    { key: 'videoTitle', label: '動画タイトル' },
+    { key: 'youtubeUrl', label: 'YouTube URL' },
+    { key: 'error', label: '失敗理由' },
+    { key: 'failedAt', label: '失敗日時' },
+    { key: 'channelTitle', label: 'チャンネル' },
+  ];
+  download('wines-failed.csv', toCsv(arr, headers));
+}
+
+function clearFailedList() {
+  if (!confirm('失敗動画一覧をすべて削除しますか？（一覧から消えるだけで、動画自体は再読み込みで戻ります）')) return;
+  localStorage.removeItem(FAILED_KEY);
+  renderFailed(); renderChannelList();
+}
+
+async function retryFailedSelected() {
+  const selectedIds = [...document.querySelectorAll('.failed-check:checked')].map(c => c.dataset.id);
+  if (!selectedIds.length) { showMsg('リトライする動画が選択されていません。', 'warn'); return; }
+  const all = loadFailed();
+  const targets = all.filter(f => selectedIds.includes(f.videoId));
+  if (!targets.length) return;
+  if (!confirm(`${targets.length} 本の動画をリトライします。約 ${Math.ceil(targets.length * BATCH_DELAY_MS / 60000)} 分かかる見込みです。開始しますか？`)) return;
+
+  const retryBtn = document.getElementById('failed-retry-selected');
+  const origBtn = retryBtn.innerHTML;
+  let retryAbort = false;
+  retryBtn.innerHTML = '中止する'; retryBtn.classList.remove('primary');
+  retryBtn.onclick = () => { retryAbort = true; retryBtn.disabled = true; retryBtn.textContent = '中止処理中...'; };
+
+  const prog = document.getElementById('failed-progress');
+  const fill = document.getElementById('failed-progress-fill');
+  const text = document.getElementById('failed-progress-text');
+  prog.style.display = 'block';
+
+  let done = 0, ok = 0, ng = 0, added = 0;
+  const now = new Date();
+  const savedAt = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const failedAtStamp = savedAt + 'T' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+
+  for (const f of targets) {
+    if (retryAbort) break;
+    text.textContent = `リトライ中 ${done + 1}/${targets.length} - ${f.videoTitle || f.videoId}`;
+    try {
+      const r = await fetch('/api/extract', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: f.youtubeUrl || `https://www.youtube.com/watch?v=${f.videoId}` }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      const wines = d.wines || [];
+      if (wines.length) {
+        const enriched = wines.map(w => ({
+          ...w,
+          videoId: d.videoId,
+          videoTitle: d.title || f.videoTitle || '',
+          publishedDate: (d.publishedDate || '').slice(0, 10),
+          youtubeUrl: `https://www.youtube.com/watch?v=${d.videoId}`,
+          savedAt,
+        }));
+        const cur = loadAccum(); cur.push(...enriched); saveAccum(cur);
+        added += enriched.length;
+        removeFailed(f.videoId);
+        ok += 1;
+      } else {
+        // 0件のままなのでリスト残す（理由は更新）
+        addFailed({ ...f, error: '0 wines detected (retry)', failedAt: failedAtStamp });
+        ng += 1;
+      }
+    } catch (e) {
+      addFailed({ ...f, error: String(e.message || e).slice(0, 200), failedAt: failedAtStamp });
+      ng += 1;
+    }
+    done += 1;
+    fill.style.width = (done / targets.length * 100) + '%';
+    text.textContent = `完了 ${done}/${targets.length}（成功 ${ok} / 失敗 ${ng} / 追加ワイン ${added} 本）`;
+    renderAccum(); renderFailed(); renderChannelList();
+    if (done < targets.length && !retryAbort) await sleep(BATCH_DELAY_MS);
+  }
+
+  retryBtn.innerHTML = origBtn; retryBtn.classList.add('primary'); retryBtn.disabled = false;
+  retryBtn.onclick = retryFailedSelected;
+  showMsg(`リトライ完了: 成功 ${ok} / 失敗 ${ng} / ワイン ${added} 本を追加${retryAbort ? '（中止しました）' : ''}`, ng ? 'warn' : 'info');
+}
+
 // ---------- チャンネル一覧 ----------
 function renderChannelList() {
   if (!channelState) return;
@@ -368,16 +546,24 @@ function renderChannelList() {
     box.innerHTML = '<div class="empty">該当する動画がありません</div>';
     return;
   }
+  const failedIds = new Set(loadFailed().map(f => f.videoId));
   let html = '';
   for (const v of items) {
     const isProcessed = processed.has(v.id);
+    const isFailed = failedIds.has(v.id);
     const state = v._state || '';
-    const cls = state || (isProcessed ? 'processed' : '');
-    const badge = state
-      ? `<span class="chan-status ${state}">${state === 'processing' ? '処理中' : state === 'processed' ? '完了' : '失敗'}</span>`
-      : isProcessed ? '<span class="chan-status processed">保存済み</span>' : '';
-    const disabled = isProcessed && !state ? 'disabled' : '';
-    const checked = !isProcessed ? 'checked' : '';
+    const cls = state || (isFailed ? 'failed' : (isProcessed ? 'processed' : ''));
+    let badge = '';
+    if (state) {
+      badge = `<span class="chan-status ${state}">${state === 'processing' ? '処理中' : state === 'processed' ? '完了' : '失敗'}</span>`;
+    } else if (isFailed) {
+      badge = '<span class="chan-status failed">失敗（要リトライ）</span>';
+    } else if (isProcessed) {
+      badge = '<span class="chan-status processed">保存済み</span>';
+    }
+    // 失敗した動画はチェック可能（リトライしたい）。成功保存済みは disabled。
+    const disabled = (isProcessed && !isFailed && !state) ? 'disabled' : '';
+    const checked = (!isProcessed || isFailed) ? 'checked' : '';
     html += `
       <div class="chan-item ${cls}">
         <input type="checkbox" data-id="${escapeHtml(v.id)}" class="chan-check" ${checked} ${disabled}>
@@ -492,6 +678,8 @@ function saveCurrentToAccum() {
   const now = new Date();
   const savedAt = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
   const ctx = currentContext || {};
+  // 手入力で保存できたので、失敗リストからは外す
+  if (ctx.videoId) removeFailed(ctx.videoId);
   const enriched = rows.map(r => ({
     ...r,
     videoId: ctx.videoId || '',
@@ -501,7 +689,7 @@ function saveCurrentToAccum() {
     savedAt,
   }));
   const cur = loadAccum(); cur.push(...enriched); saveAccum(cur);
-  renderAccum(); renderChannelList();
+  renderAccum(); renderFailed(); renderChannelList();
   showMsg(`${rows.length} 本を一覧に追加しました。`, 'info');
 }
 
@@ -560,18 +748,21 @@ async function batchExtract() {
   const text = document.getElementById('progress-text');
   prog.style.display = 'block';
 
-  let done = 0, ok = 0, ng = 0, added = 0;
+  let done = 0, ok = 0, ng = 0, zero = 0, added = 0;
   const now = new Date();
   const savedAt = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const failedAtStamp = savedAt + 'T' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  const chanTitle = channelState?.channelTitle || '';
 
   for (const v of targets) {
     if (batchAbort) break;
     v._state = 'processing'; renderChannelList();
     text.textContent = `処理中 ${done + 1}/${targets.length} - ${v.title || v.id}`;
+    const yt = `https://www.youtube.com/watch?v=${v.id}`;
     try {
       const r = await fetch('/api/extract', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: `https://www.youtube.com/watch?v=${v.id}` }),
+        body: JSON.stringify({ url: yt }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
@@ -583,22 +774,46 @@ async function batchExtract() {
         youtubeUrl: `https://www.youtube.com/watch?v=${d.videoId}`,
         savedAt,
       }));
-      if (enriched.length) { const cur = loadAccum(); cur.push(...enriched); saveAccum(cur); added += enriched.length; }
-      v._state = 'processed'; ok += 1;
+      if (enriched.length) {
+        const cur = loadAccum(); cur.push(...enriched); saveAccum(cur); added += enriched.length;
+        // 過去に失敗リストにあれば取り除く
+        removeFailed(v.id);
+        v._state = 'processed'; ok += 1;
+      } else {
+        // ワイン 0 件 → 失敗リストに記録して後で見返せるように
+        addFailed({
+          videoId: v.id,
+          videoTitle: d.title || v.title || '',
+          youtubeUrl: yt,
+          channelTitle: chanTitle,
+          error: '0 wines detected（概要欄・字幕ともワイン情報を検出できず）',
+          failedAt: failedAtStamp,
+        });
+        v._state = 'failed'; zero += 1;
+      }
     } catch (e) {
+      addFailed({
+        videoId: v.id,
+        videoTitle: v.title || '',
+        youtubeUrl: yt,
+        channelTitle: chanTitle,
+        error: String(e.message || e).slice(0, 200),
+        failedAt: failedAtStamp,
+      });
       v._state = 'failed'; ng += 1;
       console.error('batch error for', v.id, e);
     }
     done += 1;
     fill.style.width = (done / targets.length * 100) + '%';
-    text.textContent = `完了 ${done}/${targets.length}（成功 ${ok} / 失敗 ${ng} / 追加ワイン ${added} 本）`;
-    renderChannelList(); renderAccum();
+    text.textContent = `完了 ${done}/${targets.length}（成功 ${ok} / 0件 ${zero} / エラー ${ng} / 追加ワイン ${added} 本）`;
+    renderChannelList(); renderAccum(); renderFailed();
     if (done < targets.length && !batchAbort) await sleep(BATCH_DELAY_MS);
   }
 
   btn.innerHTML = origBtn; btn.classList.add('primary'); btn.disabled = false;
   btn.onclick = batchExtract;
-  showMsg(`バッチ完了: 成功 ${ok} / 失敗 ${ng} / ワイン ${added} 本を追加${batchAbort ? '（中止しました）' : ''}`, ng ? 'warn' : 'info');
+  const totalFail = ng + zero;
+  showMsg(`バッチ完了: 成功 ${ok} / 0件 ${zero} / エラー ${ng} / ワイン ${added} 本を追加${batchAbort ? '（中止しました）' : ''}${totalFail ? ' — 「抽出失敗した動画」欄からリトライできます。' : ''}`, totalFail ? 'warn' : 'info');
 }
 
 // ---------- ハンドラ ----------
@@ -631,9 +846,17 @@ document.getElementById('chan-select-none').addEventListener('click', () => {
 });
 document.getElementById('chan-select-unproc').addEventListener('click', () => {
   const processed = processedVideoIds();
-  document.querySelectorAll('.chan-check').forEach(c => { c.checked = !processed.has(c.dataset.id); });
+  const failedIds = new Set(loadFailed().map(f => f.videoId));
+  document.querySelectorAll('.chan-check').forEach(c => {
+    // 未処理 OR 失敗（＝要リトライ）を選択
+    c.checked = !processed.has(c.dataset.id) || failedIds.has(c.dataset.id);
+  });
 });
+document.getElementById('failed-retry-selected').addEventListener('click', retryFailedSelected);
+document.getElementById('csv-failed').addEventListener('click', downloadFailed);
+document.getElementById('clear-failed').addEventListener('click', clearFailedList);
 renderAccum();
+renderFailed();
 </script>
 
 </body>
