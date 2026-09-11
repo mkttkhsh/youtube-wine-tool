@@ -157,6 +157,16 @@
       <button id="chan-select-unproc" class="ghost">未処理のみ選択</button>
     </div>
     <div id="chan-list" class="chan-list"></div>
+
+    <!-- 選択中プレビュー -->
+    <div id="selected-preview" style="margin-top: 12px; display:none;">
+      <div class="row" style="align-items:center;">
+        <strong id="selected-summary" style="font-size:13px; flex:1;"></strong>
+        <button id="toggle-selected-list" class="ghost" style="font-size:12px; padding:4px 10px;">一覧を表示 ▼</button>
+      </div>
+      <div id="selected-list" class="chan-list" style="display:none; margin-top:8px; max-height:40vh;"></div>
+    </div>
+
     <div class="toolbar" style="margin-top: 12px;">
       <button id="chan-load-more" class="ghost" style="display:none">もっと読み込む（次のページ）</button>
       <button id="chan-extract" class="primary">選択した動画からワインを一括抽出</button>
@@ -579,6 +589,86 @@ function renderChannelList() {
       </div>`;
   }
   box.innerHTML = html;
+
+  // チェックボックス変更で選択プレビューを更新
+  box.querySelectorAll('.chan-check').forEach(c => {
+    c.addEventListener('change', renderSelectedPreview);
+  });
+  renderSelectedPreview();
+}
+
+// ---------- 選択中プレビュー ----------
+function getSelectedVideos() {
+  if (!channelState) return [];
+  const ids = [...document.querySelectorAll('.chan-check:checked:not(:disabled)')].map(c => c.dataset.id);
+  const idSet = new Set(ids);
+  // channelState.videos の順を維持
+  return channelState.videos.filter(v => idSet.has(v.id));
+}
+
+function renderSelectedPreview() {
+  const preview = document.getElementById('selected-preview');
+  const summary = document.getElementById('selected-summary');
+  const list = document.getElementById('selected-list');
+  const selected = getSelectedVideos();
+  if (!selected.length) {
+    preview.style.display = 'none';
+    list.style.display = 'none';
+    document.getElementById('toggle-selected-list').textContent = '一覧を表示 ▼';
+    return;
+  }
+  preview.style.display = 'block';
+  const mins = Math.ceil(selected.length * BATCH_DELAY_MS / 60000);
+  summary.innerHTML = `選択中: <span style="color:var(--accent)">${selected.length}</span> 本 <span class="sub">（一括抽出でおよそ ${mins} 分）</span>`;
+  // リストが開いている時は中身も更新
+  if (list.style.display !== 'none') {
+    list.innerHTML = renderSelectedListHtml(selected);
+  }
+}
+
+function renderSelectedListHtml(selected) {
+  const failedIds = new Set(loadFailed().map(f => f.videoId));
+  let html = '';
+  selected.forEach((v, i) => {
+    const isFailed = failedIds.has(v.id);
+    const badge = isFailed ? ' <span class="chan-status failed" style="font-size:10px;">失敗リトライ</span>' : '';
+    html += `
+      <div class="chan-item">
+        <span class="sub" style="min-width:32px; text-align:right;">${i + 1}.</span>
+        <div class="chan-body">
+          <div class="chan-title">
+            <a href="https://www.youtube.com/watch?v=${escapeHtml(v.id)}" target="_blank" rel="noopener">${escapeHtml(v.title || '(タイトルなし)')}</a>${badge}
+          </div>
+          <div class="chan-meta">
+            ${v.publishedText ? `<span>${escapeHtml(v.publishedText)}</span>` : ''}
+            <span class="sub">${escapeHtml(v.id)}</span>
+          </div>
+        </div>
+        <button class="ghost" data-uncheck-id="${escapeHtml(v.id)}" style="padding:2px 8px; font-size:11px;">外す</button>
+      </div>`;
+  });
+  return html;
+}
+
+function toggleSelectedList() {
+  const list = document.getElementById('selected-list');
+  const btn = document.getElementById('toggle-selected-list');
+  if (list.style.display === 'none') {
+    list.innerHTML = renderSelectedListHtml(getSelectedVideos());
+    list.style.display = 'block';
+    btn.textContent = '一覧を隠す ▲';
+    // 個別に「外す」ボタン
+    list.querySelectorAll('[data-uncheck-id]').forEach(b => {
+      b.onclick = () => {
+        const id = b.dataset.uncheckId;
+        const cb = document.querySelector(`.chan-check[data-id="${CSS.escape(id)}"]`);
+        if (cb) { cb.checked = false; cb.dispatchEvent(new Event('change')); }
+      };
+    });
+  } else {
+    list.style.display = 'none';
+    btn.textContent = '一覧を表示 ▼';
+  }
 }
 
 async function loadChannel(url) {
@@ -840,9 +930,11 @@ document.getElementById('chan-extract').addEventListener('click', batchExtract);
 document.getElementById('chan-filter').addEventListener('input', renderChannelList);
 document.getElementById('chan-select-all').addEventListener('click', () => {
   document.querySelectorAll('.chan-check:not(:disabled)').forEach(c => c.checked = true);
+  renderSelectedPreview();
 });
 document.getElementById('chan-select-none').addEventListener('click', () => {
   document.querySelectorAll('.chan-check').forEach(c => c.checked = false);
+  renderSelectedPreview();
 });
 document.getElementById('chan-select-unproc').addEventListener('click', () => {
   const processed = processedVideoIds();
@@ -851,7 +943,9 @@ document.getElementById('chan-select-unproc').addEventListener('click', () => {
     // 未処理 OR 失敗（＝要リトライ）を選択
     c.checked = !processed.has(c.dataset.id) || failedIds.has(c.dataset.id);
   });
+  renderSelectedPreview();
 });
+document.getElementById('toggle-selected-list').addEventListener('click', toggleSelectedList);
 document.getElementById('failed-retry-selected').addEventListener('click', retryFailedSelected);
 document.getElementById('csv-failed').addEventListener('click', downloadFailed);
 document.getElementById('clear-failed').addEventListener('click', clearFailedList);
